@@ -1,0 +1,248 @@
+---
+title: "Training Intervention Analysis"
+author: "Michael McCurtin, id=21459584"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r include=FALSE}
+library(infer)
+library(tidyverse)
+library(tolerance)
+```
+
+## Context: Celtic Study
+
+A sample of 18 full-time youth soccer players from a Youth Academy performed high intensity aerobic interval training over a 10-week in-season period in addition to usual regime of soccer training and matches. 
+
+**The aim** of this study to find if this extra training improves V_IFT, the maximum velocity (km/hr) achieved in an intermittent fitness test (`VIFT_Pre` vs `VIFT_Post`)?
+
+This is a **paired design:** each player's V_IFT measured before and after the training intervention (i.e. start and after 10 weeks)
+
+A scaffold for the analysis with the response variable VO2 max is provided below. You need to rerun the analysis using the V_IFT variables (i.e. `VIFT_Pre` vs `VIFT_Post`) to answer the question of interest: is there, on average, an improvement in V_IFT?   To assess the evidence, you will provide confidence intervals, and other statistical inference,  for the mean improvement of players in the population (eg of future youth soccer players under the same training intervention).
+
+
+To answer the question of interest, provide a detailed response for all of the tasks asked below using the V_IFT variables (i.e. `VIFT_Pre` vs `VIFT_Post`).
+
+
+Task: State the appropriate null and alternative hypotheses for the V_IFT study.
+
+Parameter of interest: The parameter of interest is μ, the average V_IFT.
+2. Null hypothesis: H0: μ (POST) = μ (PRE). 
+3. Alternative hypothesis: H1: μ (POST) > μ (PRE).
+
+
+Task: Define a Type I and Type II error and discuss the implication of making these
+errors in this study.
+
+A Type 1 Error is defined as rejecting the null hypothesis when the null hypothesis is true.
+In this case, we would mistakenly report that V_IFT was improved when evidence did not in fact support this claim. 
+
+A Type 2 Error is defined as failing to reject the null hypothesis when the alternative hypothesis is
+true.
+In this case, we would mistakenly report that V_IFT was not improved even though there is strong evidence to support this claim.
+
+
+
+
+## Read in the training intervention data
+
+Read in the data and have a look at the variable names and structure of the data.
+
+```{r}
+train.df <- read.csv("Training_intervention_data.csv")
+glimpse(train.df)
+```
+
+## Focus on the V_IFT response variables
+
+## Summary Statistics
+
+```{r}
+train.df %>% select(VIFT_Pre,VIFT_Post) %>% summary()
+```
+Task: Interpret!
+
+On average, VIFT has improved after the training. The minumum and maximum values have also improved.
+
+## Mean and Standard Deviation
+
+```{r}
+train.df %>% select(VIFT_Pre,VIFT_Post) %>%
+            summarize(Pre_Mean=mean(VIFT_Pre), Pre_SD= sd(VIFT_Pre),
+                      Post_Mean=mean(VIFT_Post), Post_SD= sd(VIFT_Post))
+```
+
+Task: Interpret!
+
+The mean VIFT is higher after the training, as is the standard deviation. Therefore, the values are higher on average but slightly less centralised.
+
+## Scatterplot of Pre and Post with line of equality
+
+```{r}
+train.df %>% ggplot(aes(x = VIFT_Pre, y = VIFT_Post)) +
+        geom_point() + 
+  ggtitle("Scatterplot of Pre and Post VIFT") +
+  ylab("Post VIFT)") +
+  xlab("Pre VIFT") +
+  geom_abline(slope=1, intercept=0)
+  
+```
+
+Task: Interpret!
+
+There is a moderately strong, positive relationship between the VIFT before and VIFT after - the two datasets are clustered around a line of best fit with slope 1. VIFT Post is higher than VIFT Pre for each datapoint. Three notable outliers appear in the 31-35 Post range.
+
+## Calculate the Improvement in V_IFT
+
+Calculate a new variable, "improvement", and have a look at the data frame to see that it has been created.  High values of VO2 max are good so Post-Pre is a better measure than Pre-Post to capture this - what about V_IFT?
+
+```{r}
+
+train.df <- train.df %>% mutate(Improvement = VIFT_Post-VIFT_Pre) %>%
+              glimpse()
+  
+
+
+```
+
+
+## Mean and Standard Deviation of Improvement in V_IFT
+
+```{r}
+
+train.df %>% select(Improvement) %>%
+            summarize(Imp_Mean=mean(Improvement), Imp_SD= sd(Improvement))
+
+```
+
+Task: Interpret!
+
+The average improvement is just over 2. The standard deviation is high, however - almost as large as the mean itself, meaning the data is largely spread out.
+## Boxplot of Improvement in V_IFT
+
+```{r}
+
+
+train.df %>% ggplot(aes(x = "", y = Improvement)) +
+        geom_boxplot() + 
+  ggtitle("Boxplot of Improvement in VIFT") +
+  ylab("Improvement in VIFT") +
+  xlab("") +
+  coord_flip()
+
+```
+
+Task: Interpret!
+
+The boxplot is slightly right-skewed, with a median of roughly 1.8. The minimum improvement is roughly 0.7 while the maximum improvement is roughly 31. There are no notable outliers.
+
+
+## 95% Confidence Interval Using the t.test function
+
+```{r}
+
+train.df %>% select(Improvement) %>% t.test()
+
+```
+
+Task: Based on the output given answer the following questions:
+
+* What is the mean improvement in V_IFT the population of interest? Interpret the relevant 95% Confidence Interval carefully.
+
+We are 95% confident that the mean improvement lies between 1.151621 and 2.970601. The midpoint of these values is 2.061111.
+
+* Use the relevant interval estimate and p-value to decide whether there is sufficient evidence in the sample provided to claim that there is any improvement on average in V_IFT in the population of interest.
+
+The p-value is extremely small, meaning these V_IFT results would be very unlikely under the null hypothesis. We can therefore claim that there is indeed an average improvement.
+
+* What are the assumptions underlying the one sample t-test presented?
+
+We assume that the data are independent. We assume that the observations are approximately normally distributed. We assume that there are no significant outliers.
+
+* Explain why or why not the assumptions seem justified based on the output provided.
+
+
+
+## 95% Bootstrap CI for the mean
+
+```{r}
+
+boot <- train.df %>%
+  specify(response = Improvement) %>%
+  generate(reps = 1000, type = "bootstrap") %>%
+  calculate(stat = "mean")
+
+percentile_ci <- get_ci(boot)
+round(percentile_ci,2)
+
+```
+
+Task: Interpret!
+
+These 95% CI values are slightly different than the t-test's - the lower bound is higher and the higher bound is lower. Therefore, the bootstrap CI is narrower than the T-test's.
+
+```{r}
+boot %>% visualize()+
+  shade_confidence_interval(endpoints = percentile_ci) +
+                   xlab("Bootstrap Mean") + ylab("Frequency")
+
+```
+
+Task: Interpret!
+
+## 95% Bootstrap CI for the median improvement
+
+```{r}
+
+boot.median <- train.df %>%
+  specify(response = Improvement) %>%
+  generate(reps = 1000, type = "bootstrap") %>%
+  calculate(stat = "median")
+
+percentile_ci_median <- get_ci(boot.median)
+round(percentile_ci_median,2)
+
+```
+
+Task: Interpret!
+
+We can be 95% confident that the median improvement lies between 0.7 and 3.1. This is quite a high range, encompassing almost all of the improvement values, therefore this interval may not be very useful.
+
+```{r}
+boot.median %>% visualize()+
+  shade_confidence_interval(endpoints = percentile_ci_median) +
+                   xlab("Bootstrap Median") + ylab("Frequency")
+
+```
+
+Task: Interpret!
+The graph is negatively skewed with a large spike around the 1.2 region. The smaller bootstrap results are clustered around this spike but the larger ones are distributed around the 2-3 interval. We could therefore estimate that the true median is close to 2.
+
+
+
+## 95% Tolerance Interval (Bonus Question)
+
+Calculate a 95% tolerance interval covering 95% of V_IFT improvement values 
+
+```{r}
+
+normtol.int(train.df$Improvement, alpha = 0.05, P = 0.95)
+
+```
+
+Task: Interpret!
+
+
+## Overall Conclusion 
+Analysis of the provided data has shown that there is, on average, a marked improvement in V_IFT after the training programme.The sample size (18) is quite small, but bootstrap tests also resulted in an improvement across the board. Because of these, I believe that there is sufficient evidence to reject the null hypothesis and accept the alternative hypothesis: μ (POST) > μ (PRE).
+
+
+
+
+ 
+
+
+
